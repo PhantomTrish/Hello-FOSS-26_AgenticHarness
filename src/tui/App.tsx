@@ -4,7 +4,7 @@ import { Text, Box } from 'ink';
 export default function App() {
     return (
         <Box>
-            <Text>Hello World</Text>
+            <Text>This is meant to be a Claude Code CLI clone.</Text>
         </Box>
     );
 }
