@@ -1,5 +1,5 @@
-import { AgentListener, AgentState, AgentStatus, ChatMessage, ChatService } from "../types/chat.js";
-import { Tool } from "../types/tool.js";
+import { AgentEvent, AgentListener, AgentState, AgentStatus, ChatMessage, ChatService } from "../types/chat.js";
+import { Tool, ToolCall } from "../types/tool.js";
 import { OpenAiChatService } from "./chat.js";
 
 export interface AgentOptions {
@@ -13,6 +13,7 @@ export class Agent {
     private tools: Tool[];
     private messages: ChatMessage[] = [];
     private status: AgentStatus = 'idle';
+    private activeToolName?: string;
     private error?: string;
     private listeners: Set<AgentListener> = new Set();
 
@@ -28,6 +29,7 @@ export class Agent {
         return {
             messages: [...this.messages],
             status: this.status,
+            activeToolName: this.activeToolName,
             error: this.error
         };
     }
@@ -48,29 +50,94 @@ export class Agent {
         }
     }
 
-    private setStatus(status: AgentStatus, error?: string) {
+    private setStatus(status: AgentStatus, extra?: { activeToolName?: string; error?: string }) {
         this.status = status;
-        this.error = error;
+        this.activeToolName = extra?.activeToolName;
+        this.error = extra?.error;
         this.notify();
     }
 
-    public async prompt(input: string): Promise<void> {
-        const trimmed = input.trim();
-        if (!trimmed || this.status === 'thinking') return;
-
-        this.messages.push({ role: 'user', content: trimmed });
-        this.setStatus('thinking');
+    private async executeTool(toolCall: ToolCall): Promise<string> {
+        const tool = this.tools.find((t) => t.name === toolCall.name);
+        if (!tool) {
+            return `Error: Tool "${toolCall.name}" not found.`;
+        }
 
         try {
-            const response = await this.chatService.chat(this.messages, this.tools);
+            return await tool.execute(toolCall.arguments);
+        } catch (err: any) {
+            return `Error executing "${toolCall.name}": ${err?.message || String(err)}`;
+        }
+    }
 
-            if (response.content) {
-                this.messages.push({ role: 'assistant', content: response.content });
+    public async *run(input: string): AsyncGenerator<AgentEvent> {
+        const trimmed = input.trim();
+        if (!trimmed || this.status === 'thinking' || this.status === 'executing_tool') return;
+
+        const userMessage: ChatMessage = { role: 'user', content: trimmed };
+        this.messages.push(userMessage);
+        this.setStatus('thinking');
+
+        yield { type: 'message', message: userMessage };
+        yield { type: 'status', status: 'thinking' };
+
+        try {
+            const MAX_STEPS = 10;
+            let step = 0;
+
+            while (step++ < MAX_STEPS) {
+                const response = await this.chatService.chat(this.messages, this.tools);
+
+                const assistantMessage: ChatMessage = {
+                    role: 'assistant',
+                    content: response.content,
+                    toolCalls: response.toolCalls,
+                    providerMetadata: response.providerMetadata,
+                };
+                this.messages.push(assistantMessage);
+                yield { type: 'message', message: assistantMessage };
+
+                if (!response.toolCalls || response.toolCalls.length === 0) {
+                    break;
+                }
+
+                for (const toolCall of response.toolCalls) {
+                    yield { type: 'tool_call', toolCall };
+                    this.setStatus('executing_tool', { activeToolName: toolCall.name });
+                    yield { type: 'status', status: 'executing_tool', activeToolName: toolCall.name };
+
+                    const result = await this.executeTool(toolCall);
+
+                    const toolMessage: ChatMessage = {
+                        role: 'tool',
+                        toolCallId: toolCall.id,
+                        name: toolCall.name,
+                        content: result,
+                    };
+                    this.messages.push(toolMessage);
+
+                    yield { type: 'tool_result', toolCallId: toolCall.id, name: toolCall.name, result };
+                    yield { type: 'message', message: toolMessage };
+                }
+
+                this.setStatus('thinking');
+                yield { type: 'status', status: 'thinking' };
             }
 
             this.setStatus('idle');
+            yield { type: 'status', status: 'idle' };
+            yield { type: 'done' };
         } catch (err: any) {
-            this.setStatus('error', err?.message || 'Unknown error occured');
+            const errorMessage = err?.message || 'Unknown error occurred';
+            this.setStatus('error', { error: errorMessage });
+            yield { type: 'error', error: errorMessage };
+            yield { type: 'status', status: 'error' };
+        }
+    }
+
+    public async prompt(input: string): Promise<void> {
+        for await (const _event of this.run(input)) {
+            // Iterates through generator for backward compatibility
         }
     }
 }

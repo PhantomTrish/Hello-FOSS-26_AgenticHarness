@@ -1,3 +1,4 @@
+import React from "react";
 import { Box, Text } from "ink";
 import { ChatMessage } from "../../types/chat.js";
 
@@ -8,23 +9,55 @@ interface MessageListProps {
 export default function MessageList({ messages }: MessageListProps) {
     return (
         <Box flexDirection='column'>
-            {
-                messages.map((message, index) => {
-                    const isUser = message.role === 'user';
-                    const isSystem = message.role === 'system';
-                    if (isSystem) return;
-                    return (
-                        <Box key={index} flexDirection='column' marginBottom={1}>
-                            <Text bold color={isUser ? 'cyan' : 'magenta'}>
-                                {isUser ? 'You:' : 'Assistant:'}
-                            </Text>
-                            <Box paddingLeft={2}>
+            {messages.map((message, index) => {
+                switch (message.role) {
+                    case 'system':
+                        return null;
+
+                    case 'user':
+                        return (
+                            <Box key={index} flexDirection='column' marginBottom={1}>
+                                <Text bold color='cyan'>You:</Text>
+                                <Box paddingLeft={2}>
+                                    <Text>{message.content}</Text>
+                                </Box>
+                            </Box>
+                        );
+
+                    case 'assistant':
+                        return (
+                            <Box key={index} flexDirection='column' marginBottom={1}>
+                                {message.content && (
+                                    <>
+                                        <Text bold color='magenta'>Assistant:</Text>
+                                        <Box paddingLeft={2}>
+                                            <Text>{message.content}</Text>
+                                        </Box>
+                                    </>
+                                )}
+                                {message.toolCalls?.map((tc) => (
+                                    <Box key={tc.id} flexDirection='column' paddingLeft={2} marginTop={message.content ? 1 : 0}>
+                                        <Text color='yellow'>
+                                            🛠️  Call: <Text bold>{tc.name}</Text>
+                                        </Text>
+                                        <Box paddingLeft={4}>
+                                            <Text dimColor>{JSON.stringify(tc.arguments)}</Text>
+                                        </Box>
+                                    </Box>
+                                ))}
+                            </Box>
+                        );
+
+                    case 'tool':
+                        return (
+                            <Box key={index} paddingLeft={2} marginBottom={1}>
+                                <Text color='green'>⎿  </Text>
+                                <Text color='gray'>[{message.name}]: </Text>
                                 <Text>{message.content}</Text>
                             </Box>
-                        </Box>
-                    );
-                })
-            }
+                        );
+                }
+            })}
         </Box>
-    )
+    );
 }

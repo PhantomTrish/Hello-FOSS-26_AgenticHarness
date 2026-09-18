@@ -7,13 +7,14 @@ interface ChatInputProps {
     onChange: (value: string) => void;
     onSubmit: (value: string) => void;
     isDisabled?: boolean;
+    statusText?: string;
 }
 
-export default function ChatInput({ value, onChange, onSubmit, isDisabled = false }: ChatInputProps) {
+export default function ChatInput({ value, onChange, onSubmit, isDisabled = false, statusText }: ChatInputProps) {
     if (isDisabled) {
         return (
             <Box>
-                <Text color="gray">&gt; Thinking...</Text>
+                <Text color="gray">&gt; {statusText || 'Thinking...'}</Text>
             </Box>
         );
     }

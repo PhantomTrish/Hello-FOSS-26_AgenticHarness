@@ -9,12 +9,15 @@ const PROVIDER_CONFIG = {
     openrouter: {
         baseURL: 'https://openrouter.ai/api/v1',
         apiKey: process.env.OPENROUTER_API_KEY,
-        model: 'openrouter/free'
+        model: 'openrouter/free',
+        bypassThoughtSignature: false,
     },
     gemini: {
         baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai',
         apiKey: process.env.GEMINI_API_KEY,
-        model: 'gemini-flash-lite-latest'
+        model: 'gemini-flash-lite-latest',
+        bypassThoughtSignature: false, // Toggle: injects 'skip_thought_signature_validator' if signature is absent. 
+        // basically, google gives you an error if it doesn't get its older thought-process back. but it *can* get dropped by openai sdk or something, if it does, we can choose to silence that error using this bypassing flag. 
     },
 } as const;
 
@@ -22,5 +25,8 @@ export const config = PROVIDER_CONFIG[router];
 
 if (config.apiKey == null) console.warn('API KEY is not set!');
 
-export const openai = new OpenAI(config);
+export const openai = new OpenAI({
+    baseURL: config.baseURL,
+    apiKey: config.apiKey,
+});
 
