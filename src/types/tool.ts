@@ -7,7 +7,12 @@ export interface Tool<TArgs = any> {
         required?: string[];
     }
 
-    execute: (args: TArgs) => Promise<string> | string;
+    execute: (args: TArgs) => Promise<ToolResult> | ToolResult;
+}
+
+export interface ToolResult {
+    content: string;
+    summary?: string;
 }
 
 export interface ToolCall {

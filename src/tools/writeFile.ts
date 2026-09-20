@@ -7,31 +7,38 @@ interface WriteFileArgs {
     content: string;
 }
 
-export const writeFileTool: Tool<WriteFileArgs> = {
-    name: 'write_file',
-    description: 'Writes or overwrites text content to a file at given relative path.',
-    parameters: {
-        type: 'object',
-        properties: {
-            path: {
-                type: 'string',
-                description: 'The relative file path (e.g. "src/test.txt" or "notes.md")',
+export function createWriteFileTool(projectRoot: string): Tool<WriteFileArgs> {
+    return {
+        name: 'write_file',
+        description: 'Writes or overwrites text content to a file at given relative path.',
+        parameters: {
+            type: 'object',
+            properties: {
+                path: {
+                    type: 'string',
+                    description: 'The relative file path (e.g. "src/test.txt" or "notes.md")',
+                },
+                content: {
+                    type: 'string',
+                    description: 'The text content to write into the file',
+                },
             },
-            content: {
-                type: 'string',
-                description: 'The text content to write into the file',
-            },
+            required: ['path', 'content'],
         },
-        required: ['path', 'content'],
-    },
-    execute: async ({ path: filePath, content }) => {
-        try {
-            const resolvedPath = path.resolve(process.cwd(), filePath);
-            fs.mkdirSync(path.dirname(resolvedPath), { recursive: true });
-            fs.writeFileSync(resolvedPath, content, 'utf-8');
-            return `Successfully wrote ${content.length} bytes to ${filePath}`;
-        } catch (error: any) {
-            return `Error writing file: ${error.message}`;
-        }
-    },
+        execute: async ({ path: filePath, content }) => {
+            try {
+                const resolvedPath = path.resolve(projectRoot, filePath);
+                fs.mkdirSync(path.dirname(resolvedPath), { recursive: true });
+                fs.writeFileSync(resolvedPath, content, 'utf-8');
+                return {
+                    content: `Successfully wrote ${content.length} bytes to ${filePath}`,
+                    summary: `${filePath} [${content.length} bytes]`,
+                };
+            } catch (error: any) {
+                return {
+                    content: `Error writing file: ${error.message}`,
+                };
+            }
+        },
+    }
 };

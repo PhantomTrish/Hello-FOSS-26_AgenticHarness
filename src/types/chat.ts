@@ -25,6 +25,7 @@ export interface ToolMessage {
     toolCallId: string;
     name: string;
     content: string;
+    summary?: string; // Human Friendly Summary for the UI
 }
 
 export type ChatMessage =

@@ -1,5 +1,7 @@
+import { createReadFileTool } from "../tools/readFile.js";
+import { createWriteFileTool } from "../tools/writeFile.js";
 import { AgentEvent, AgentListener, AgentState, AgentStatus, ChatMessage, ChatService } from "../types/chat.js";
-import { Tool, ToolCall } from "../types/tool.js";
+import { Tool, ToolCall, ToolResult } from "../types/tool.js";
 import { OpenAiChatService } from "./chat.js";
 
 export interface AgentOptions {
@@ -57,16 +59,16 @@ export class Agent {
         this.notify();
     }
 
-    private async executeTool(toolCall: ToolCall): Promise<string> {
+    private async executeTool(toolCall: ToolCall): Promise<ToolResult> {
         const tool = this.tools.find((t) => t.name === toolCall.name);
         if (!tool) {
-            return `Error: Tool "${toolCall.name}" not found.`;
+            return { content: `Error: Tool "${toolCall.name}" not found.` };
         }
 
         try {
             return await tool.execute(toolCall.arguments);
         } catch (err: any) {
-            return `Error executing "${toolCall.name}": ${err?.message || String(err)}`;
+            return { content: `Error executing "${toolCall.name}": ${err?.message || String(err)}` };
         }
     }
 
@@ -106,17 +108,18 @@ export class Agent {
                     this.setStatus('executing_tool', { activeToolName: toolCall.name });
                     yield { type: 'status', status: 'executing_tool', activeToolName: toolCall.name };
 
-                    const result = await this.executeTool(toolCall);
+                    const { content, summary } = await this.executeTool(toolCall);
 
                     const toolMessage: ChatMessage = {
                         role: 'tool',
                         toolCallId: toolCall.id,
                         name: toolCall.name,
-                        content: result,
+                        content: content,
+                        summary: summary
                     };
                     this.messages.push(toolMessage);
 
-                    yield { type: 'tool_result', toolCallId: toolCall.id, name: toolCall.name, result };
+                    yield { type: 'tool_result', toolCallId: toolCall.id, name: toolCall.name, result: content };
                     yield { type: 'message', message: toolMessage };
                 }
 
@@ -140,4 +143,14 @@ export class Agent {
             // Iterates through generator for backward compatibility
         }
     }
+
+}
+export function createCodingAgent(projectRoot: string): Agent {
+    return new Agent({
+        tools: [
+            createWriteFileTool(projectRoot),
+            createReadFileTool(projectRoot)
+        ],
+        systemPrompt: "You are WnCC's agentic coding assistant."
+    });
 }

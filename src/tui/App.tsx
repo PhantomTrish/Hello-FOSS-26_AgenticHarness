@@ -7,9 +7,10 @@ import ChatInput from './components/ChatInput.js';
 
 interface AppProps {
     agent?: Agent;
+    projectRoot?: string;
 }
 
-export default function App({ agent: propAgent }: AppProps) {
+export default function App({ agent: propAgent, projectRoot }: AppProps) {
     const agent = useMemo(() => propAgent ?? new Agent(), [propAgent]);
 
     const [messages, setMessages] = useState<ChatMessage[]>(() => agent.getState().messages);
@@ -44,9 +45,10 @@ export default function App({ agent: propAgent }: AppProps) {
     };
 
     return (
-        <Box flexDirection='column' padding={1}>
-            <Box marginBottom={1}>
+        <Box flexDirection='column' paddingX={1}>
+            <Box marginBottom={1} flexDirection='column'>
                 <Text bold color='green'>WnCC Agentic CLI</Text>
+                {projectRoot && <Text dimColor>{`Project root: ${projectRoot}`}</Text>}
             </Box>
 
             <MessageList messages={messages} />
