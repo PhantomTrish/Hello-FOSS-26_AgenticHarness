@@ -41,3 +41,26 @@ export async function getProjectRoot(): Promise<string> {
         process.stdin.resume();
     }
 }
+
+const IGNORED = new Set(['node_modules', '.git', 'dist', '.env', '.DS_Store']);
+export function getProjectTree(dir: string, depth = 2, currentDepth = 0, prefix = ''): string {
+    if (currentDepth > depth) return '';
+    try {
+        const entries = fs.readdirSync(dir, { withFileTypes: true })
+            .filter((e) => !IGNORED.has(e.name))
+            .sort((a, b) => (a.isDirectory() === b.isDirectory() ? a.name.localeCompare(b.name) : a.isDirectory() ? -1 : 1));
+        let output = '';
+        entries.forEach((entry, idx) => {
+            const isLast = idx === entries.length - 1;
+            const pointer = isLast ? '└── ' : '├── ';
+            output += `${prefix}${pointer}${entry.name}${entry.isDirectory() ? '/' : ''}\n`;
+            if (entry.isDirectory()) {
+                const newPrefix = prefix + (isLast ? '    ' : '│   ');
+                output += getProjectTree(path.join(dir, entry.name), depth, currentDepth + 1, newPrefix);
+            }
+        });
+        return output;
+    } catch {
+        return '';
+    }
+}

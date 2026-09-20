@@ -1,0 +1,9 @@
+{
+  "name": "simple-calculator",
+  "version": "1.0.0",
+  "description": "Simple interactive console calculator (+, -, and *)",
+  "main": "calculator.js",
+  "scripts": {
+    "start": "node calculator.js"
+  }
+}

@@ -1,7 +1,9 @@
+import { createEditFileTool } from "../tools/editFile.js";
 import { createReadFileTool } from "../tools/readFile.js";
 import { createWriteFileTool } from "../tools/writeFile.js";
 import { AgentEvent, AgentListener, AgentState, AgentStatus, ChatMessage, ChatService } from "../types/chat.js";
 import { Tool, ToolCall, ToolResult } from "../types/tool.js";
+import { getProjectTree } from "../utils/workspace.js";
 import { OpenAiChatService } from "./chat.js";
 
 export interface AgentOptions {
@@ -146,11 +148,21 @@ export class Agent {
 
 }
 export function createCodingAgent(projectRoot: string): Agent {
+    const tree = getProjectTree(projectRoot);
     return new Agent({
         tools: [
             createWriteFileTool(projectRoot),
-            createReadFileTool(projectRoot)
+            createReadFileTool(projectRoot),
+            createEditFileTool(projectRoot),
         ],
-        systemPrompt: "You are WnCC's agentic coding assistant."
+        systemPrompt: `You are WnCC's expert agentic coding assistant.
+Current Project Structure:
+${tree}
+
+Best Practices:
+1. Always read existing files first with read_file to inspect the exact code and whitespace before making edits.
+2. Use edit_file for modifying existing code. Provide the exact snippet in oldString with enough context so it is unique.
+3. Only use write_file when creating completely new files or when an entire rewrite is explicitly desired. Prefer edit_file over write_file.
+        `
     });
 }

@@ -1,10 +1,7 @@
 import React from "react";
 import { Box, Text } from "ink";
 import { ChatMessage } from "../../types/chat.js";
-import { marked } from "marked";
-import { markedTerminal } from "marked-terminal";
-
-marked.use(markedTerminal() as any);
+import Markdown from "./Markdown.js";
 
 interface MessageListProps {
     messages: ChatMessage[];
@@ -35,25 +32,18 @@ function MessageList({ messages }: MessageListProps) {
                                     <>
                                         <Text bold color='magenta'>Assistant:</Text>
                                         <Box paddingLeft={2}>
-                                            <Text>{(marked.parse(message.content) as string).trim()}</Text>
+                                            <Markdown>{message.content}</Markdown>
                                         </Box>
                                     </>
                                 )}
-                                {message.toolCalls?.map((tc) => (
-                                    <Box key={tc.id} flexDirection='column' paddingLeft={2} marginTop={message.content ? 1 : 0}>
-                                        <Text color='yellow'>
-                                            🛠️  Call: <Text bold>{tc.name}</Text>
-                                        </Text>
-                                    </Box>
-                                ))}
                             </Box>
                         );
 
                     case 'tool':
                         return (
-                            <Box key={index} paddingLeft={2} marginBottom={1}>
+                            <Box key={index} paddingLeft={2} marginBottom={0}>
                                 <Text color='green'>⎿  </Text>
-                                <Text color='gray'>[{message.name}]: </Text>
+                                <Text color='gray'>🛠️  {message.name}: </Text>
                                 <Text color='cyan'>{message.summary ?? message.content}</Text>
                             </Box>
                         );
