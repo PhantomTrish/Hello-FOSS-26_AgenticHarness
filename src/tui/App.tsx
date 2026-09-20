@@ -46,12 +46,7 @@ export default function App({ agent: propAgent, projectRoot }: AppProps) {
 
     return (
         <Box flexDirection='column' paddingX={1}>
-            <Box marginBottom={1} flexDirection='column'>
-                <Text bold color='green'>WnCC Agentic CLI</Text>
-                {projectRoot && <Text dimColor>{`Project root: ${projectRoot}`}</Text>}
-            </Box>
-
-            <MessageList messages={messages} />
+            <MessageList messages={messages} projectRoot={projectRoot} />
 
             {error && (
                 <Box marginBottom={1}>
