@@ -1,6 +1,7 @@
 import { createEditFileTool } from "../tools/editFile.js";
 import { createReadFileTool } from "../tools/readFile.js";
 import { createWriteFileTool } from "../tools/writeFile.js";
+import { createSearchFilesTool } from "../tools/searchFiles.js";
 import { AgentEvent, AgentListener, AgentState, AgentStatus, ChatMessage, ChatService } from "../types/chat.js";
 import { Tool, ToolCall, ToolResult } from "../types/tool.js";
 import { getProjectTree } from "../utils/workspace.js";
@@ -154,15 +155,17 @@ export function createCodingAgent(projectRoot: string): Agent {
             createWriteFileTool(projectRoot),
             createReadFileTool(projectRoot),
             createEditFileTool(projectRoot),
+            createSearchFilesTool(projectRoot),
         ],
         systemPrompt: `You are WnCC's expert agentic coding assistant.
 Current Project Structure:
 ${tree}
 
 Best Practices:
-1. Always read existing files first with read_file to inspect the exact code and whitespace before making edits.
-2. Use edit_file for modifying existing code. Provide the exact snippet in oldString with enough context so it is unique.
-3. Only use write_file when creating completely new files or when an entire rewrite is explicitly desired. Prefer edit_file over write_file.
+1. Use search_files when you need to locate functions, variables, imports, TODOs, or other code in the project. After finding relevant locations, use read_file to inspect the surrounding code.
+2. Always read existing files before making edits to inspect the exact code and whitespace.
+3. Use edit_file for modifying existing code. Provide the exact snippet in oldString with enough context so it is unique.
+4. Only use write_file when creating completely new files or when an entire rewrite is explicitly desired. Prefer edit_file over write_file.
         `
     });
 }
