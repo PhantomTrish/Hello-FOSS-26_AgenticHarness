@@ -7,7 +7,8 @@ export interface Tool<TArgs = any> {
         required?: string[];
     }
 
-    execute: (args: TArgs) => Promise<ToolResult> | ToolResult;
+    requiresApproval?: boolean | ((args: TArgs) => boolean);
+    execute: (args: TArgs, onChunk?: (chunk: string) => void) => Promise<ToolResult> | ToolResult;
 }
 
 export interface ToolResult {

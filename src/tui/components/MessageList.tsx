@@ -104,7 +104,8 @@ function MessageList({ messages, items: propItems, projectRoot }: MessageListPro
                             </Box>
                         );
 
-                    case 'tool':
+                    case 'tool': {
+                        const isDenied = message.summary?.startsWith('Denied');
                         return (
                             <Box
                                 key={item.id}
@@ -113,7 +114,7 @@ function MessageList({ messages, items: propItems, projectRoot }: MessageListPro
                                 flexDirection='column'
                             >
                                 <Box>
-                                    <Text color='green'>
+                                    <Text color={isDenied ? 'red' : 'green'}>
                                         ⎿
                                     </Text>
 
@@ -121,20 +122,31 @@ function MessageList({ messages, items: propItems, projectRoot }: MessageListPro
                                         {' '}🛠️ {message.name}:{' '}
                                     </Text>
 
-                                    <Text color='cyan'>
+                                    <Text color={isDenied ? 'red' : 'cyan'}>
                                         {message.summary ?? ''}
                                     </Text>
                                 </Box>
 
-                                {message.name === 'search_files' && (
+                               {message.name === 'search_files' && (
                                     <Box paddingLeft={4}>
                                         <Text color='gray'>
                                             {message.content}
                                         </Text>
                                     </Box>
                                 )}
+
+                                {message.name === 'execute_command' && !isDenied && (
+                                    <Box paddingLeft={4} flexDirection='column'>
+                                        <Text color='gray'>
+                                            {message.content.length > 800
+                                                ? message.content.slice(0, 800) + '\n... (output truncated in UI view)'
+                                                : message.content}
+                                        </Text>
+                                    </Box>
+                                )}
                             </Box>
                         );
+                    }
 
                     default:
                         return null;

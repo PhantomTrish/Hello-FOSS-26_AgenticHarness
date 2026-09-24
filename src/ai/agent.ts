@@ -2,20 +2,35 @@ import { createEditFileTool } from "../tools/editFile.js";
 import { createReadFileTool } from "../tools/readFile.js";
 import { createWriteFileTool } from "../tools/writeFile.js";
 import { createSearchFilesTool } from "../tools/searchFiles.js";
-import { AgentEvent, AgentListener, AgentState, AgentStatus, ChatMessage, ChatService } from "../types/chat.js";
+import { createTerminalTool } from "../tools/terminal.js";
+import {
+    AgentEvent,
+    AgentListener,
+    AgentState,
+    AgentStatus,
+    ApprovalDecision,
+    ChatMessage,
+    ChatResponse,
+    ChatService,
+} from "../types/chat.js";
 import { Tool, ToolCall, ToolResult } from "../types/tool.js";
+import { SessionPermissionManager } from "../utils/permissions.js";
 import { getProjectTree } from "../utils/workspace.js";
 import { OpenAiChatService } from "./chat.js";
+import { ToolRunner } from "./toolRunner.js";
 
 export interface AgentOptions {
     chatService?: ChatService;
     tools?: Tool[];
     systemPrompt?: string;
+    permissionManager?: SessionPermissionManager;
 }
 
 export class Agent {
     private chatService: ChatService;
     private tools: Tool[];
+    private toolRunner: ToolRunner;
+    private permissionManager: SessionPermissionManager;
     private messages: ChatMessage[] = [];
     private status: AgentStatus = 'idle';
     private activeToolName?: string;
@@ -25,6 +40,9 @@ export class Agent {
     constructor(options: AgentOptions = {}) {
         this.chatService = options.chatService ?? new OpenAiChatService();
         this.tools = options.tools ?? [];
+        this.toolRunner = new ToolRunner(this.tools);
+        this.permissionManager = options.permissionManager ?? new SessionPermissionManager();
+
         if (options.systemPrompt) {
             this.messages.push({ role: 'system', content: options.systemPrompt });
         }
@@ -35,7 +53,7 @@ export class Agent {
             messages: [...this.messages],
             status: this.status,
             activeToolName: this.activeToolName,
-            error: this.error
+            error: this.error,
         };
     }
 
@@ -62,22 +80,78 @@ export class Agent {
         this.notify();
     }
 
-    private async executeTool(toolCall: ToolCall): Promise<ToolResult> {
-        const tool = this.tools.find((t) => t.name === toolCall.name);
-        if (!tool) {
-            return { content: `Error: Tool "${toolCall.name}" not found.` };
-        }
-
-        try {
-            return await tool.execute(toolCall.arguments);
-        } catch (err: any) {
-            return { content: `Error executing "${toolCall.name}": ${err?.message || String(err)}` };
-        }
+    private isBusy(): boolean {
+        return this.status === 'thinking' || this.status === 'executing_tool' || this.status === 'awaiting_approval';
     }
 
-    public async *run(input: string): AsyncGenerator<AgentEvent> {
+    private needsApproval(toolCall: ToolCall): boolean {
+        const tool = this.toolRunner.getTool(toolCall.name);
+        if (!tool) return false;
+
+        const requires = typeof tool.requiresApproval === 'function'
+            ? tool.requiresApproval(toolCall.arguments)
+            : Boolean(tool.requiresApproval);
+
+        return requires && !this.permissionManager.isPermitted(toolCall.name, toolCall.arguments);
+    }
+
+    private async *promptForApproval(toolCall: ToolCall): AsyncGenerator<AgentEvent, ApprovalDecision, void> {
+        this.setStatus('awaiting_approval', { activeToolName: toolCall.name });
+        yield { type: 'status', status: 'awaiting_approval', activeToolName: toolCall.name };
+
+        let resolveApproval!: (decision: ApprovalDecision) => void;
+        const approvalPromise = new Promise<ApprovalDecision>((resolve) => {
+            resolveApproval = resolve;
+        });
+
+        yield {
+            type: 'approval_required',
+            toolCall,
+            resolve: resolveApproval,
+        };
+
+        const decision = await approvalPromise;
+
+        if (decision.approved) {
+            if (decision.alwaysAllowSession) {
+                this.permissionManager.grantAlwaysAllowSession();
+            } else if (toolCall.arguments?.command) {
+                this.permissionManager.grantCommand(toolCall.arguments.command);
+            }
+        }
+
+        return decision;
+    }
+
+    private async *handleToolDenial(toolCall: ToolCall, reason?: string): AsyncGenerator<AgentEvent, void, void> {
+        const denialReason = reason ? ` Reason: ${reason}` : '';
+        const toolMessage: ChatMessage = {
+            role: 'tool',
+            toolCallId: toolCall.id,
+            name: toolCall.name,
+            content: `Command execution was denied by the user.${denialReason}`,
+            summary: `Denied by user: ${toolCall.arguments?.command || toolCall.name}`,
+        };
+        this.messages.push(toolMessage);
+        yield { type: 'tool_result', toolCallId: toolCall.id, name: toolCall.name, result: toolMessage.content };
+        yield { type: 'message', message: toolMessage };
+    }
+
+    private recordToolResult(toolCall: ToolCall, result: ToolResult): ChatMessage {
+        const toolMessage: ChatMessage = {
+            role: 'tool',
+            toolCallId: toolCall.id,
+            name: toolCall.name,
+            content: result.content,
+            summary: result.summary,
+        };
+        this.messages.push(toolMessage);
+        return toolMessage;
+    }
+
+    public async *run(input: string, onChunk?: (chunk: string) => void): AsyncGenerator<AgentEvent> {
         const trimmed = input.trim();
-        if (!trimmed || this.status === 'thinking' || this.status === 'executing_tool') return;
+        if (!trimmed || this.isBusy()) return;
 
         const userMessage: ChatMessage = { role: 'user', content: trimmed };
         this.messages.push(userMessage);
@@ -91,7 +165,7 @@ export class Agent {
             let step = 0;
 
             while (step++ < MAX_STEPS) {
-                const response = await this.chatService.chat(this.messages, this.tools);
+                const response: ChatResponse = await this.chatService.chat(this.messages, this.tools);
 
                 const assistantMessage: ChatMessage = {
                     role: 'assistant',
@@ -108,21 +182,30 @@ export class Agent {
 
                 for (const toolCall of response.toolCalls) {
                     yield { type: 'tool_call', toolCall };
+
+                    // 1. Human-in-the-loop approval check
+                    if (this.needsApproval(toolCall)) {
+                        const decision = yield* this.promptForApproval(toolCall);
+                        if (!decision.approved) {
+                            yield* this.handleToolDenial(toolCall, decision.reason);
+                            continue;
+                        }
+                    }
+
+                    // 2. Execute tool
                     this.setStatus('executing_tool', { activeToolName: toolCall.name });
                     yield { type: 'status', status: 'executing_tool', activeToolName: toolCall.name };
 
-                    const { content, summary } = await this.executeTool(toolCall);
+                    const finalResult = await this.toolRunner.execute(toolCall, onChunk);
 
-                    const toolMessage: ChatMessage = {
-                        role: 'tool',
+                    // 3. Record tool observation
+                    const toolMessage = this.recordToolResult(toolCall, finalResult);
+                    yield {
+                        type: 'tool_result',
                         toolCallId: toolCall.id,
                         name: toolCall.name,
-                        content: content,
-                        summary: summary
+                        result: finalResult.content,
                     };
-                    this.messages.push(toolMessage);
-
-                    yield { type: 'tool_result', toolCallId: toolCall.id, name: toolCall.name, result: content };
                     yield { type: 'message', message: toolMessage };
                 }
 
@@ -143,11 +226,11 @@ export class Agent {
 
     public async prompt(input: string): Promise<void> {
         for await (const _event of this.run(input)) {
-            // Iterates through generator for backward compatibility
+            // Backward compatibility helper
         }
     }
-
 }
+
 export function createCodingAgent(projectRoot: string): Agent {
     const tree = getProjectTree(projectRoot);
     return new Agent({
@@ -156,6 +239,7 @@ export function createCodingAgent(projectRoot: string): Agent {
             createReadFileTool(projectRoot),
             createEditFileTool(projectRoot),
             createSearchFilesTool(projectRoot),
+            createTerminalTool(projectRoot),
         ],
         systemPrompt: `You are WnCC's expert agentic coding assistant.
 Current Project Structure:
@@ -166,6 +250,11 @@ Best Practices:
 2. Always read existing files before making edits to inspect the exact code and whitespace.
 3. Use edit_file for modifying existing code. Provide the exact snippet in oldString with enough context so it is unique.
 4. Only use write_file when creating completely new files or when an entire rewrite is explicitly desired. Prefer edit_file over write_file.
-        `
+5. Use execute_command to run project commands (e.g. running tests, builds, linting, git commands, inspecting directory contents).
+   - If running in a subdirectory, pass the relative directory in the "cwd" parameter.
+   - Always run non-interactive commands. Pass flags like -y, --yes, -m where needed to avoid hanging.
+   - Always inspect the returned exit code and terminal output to verify whether the command succeeded. If it failed, diagnose and fix the error.
+   - Prefer using existing available tools over commands if possible.
+        `,
     });
 }

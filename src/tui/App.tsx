@@ -1,13 +1,20 @@
 import React, { useMemo, useState } from 'react';
 import { Text, Box } from 'ink';
-import { AgentStatus, ChatMessage } from '../types/chat.js';
+import { AgentStatus, ApprovalDecision, ChatMessage } from '../types/chat.js';
+import { ToolCall } from '../types/tool.js';
 import MessageList from './components/MessageList.js';
 import { Agent } from '../ai/agent.js';
 import ChatInput from './components/ChatInput.js';
+import ApprovalPrompt from './components/ApprovalPrompt.js';
 
 interface AppProps {
     agent?: Agent;
     projectRoot?: string;
+}
+
+interface PendingApproval {
+    toolCall: ToolCall;
+    resolve: (decision: ApprovalDecision) => void;
 }
 
 export default function App({ agent: propAgent, projectRoot }: AppProps) {
@@ -18,17 +25,34 @@ export default function App({ agent: propAgent, projectRoot }: AppProps) {
     const [activeToolName, setActiveToolName] = useState<string | undefined>();
     const [error, setError] = useState<string | undefined>();
     const [input, setInput] = useState('');
+    const [pendingApproval, setPendingApproval] = useState<PendingApproval | null>(null);
+    const [streamingSnippet, setStreamingSnippet] = useState<string | undefined>();
 
-    const isBusy = status === 'thinking' || status === 'executing_tool';
-    const statusText = status === 'executing_tool'
-        ? `Running ${activeToolName || 'tool'}...`
-        : 'Thinking...';
+    const isBusy = status === 'thinking' || status === 'executing_tool' || status === 'awaiting_approval';
+
+    let statusText = 'Thinking...';
+    if (status === 'awaiting_approval') {
+        statusText = 'Waiting for your approval...';
+    } else if (status === 'executing_tool') {
+        statusText = streamingSnippet
+            ? `Running ${activeToolName || 'tool'}... [${streamingSnippet}]`
+            : `Running ${activeToolName || 'tool'}...`;
+    }
 
     const handleSubmit = async (submittedText: string) => {
         setInput('');
         setError(undefined);
+        setStreamingSnippet(undefined);
 
-        for await (const event of agent.run(submittedText)) {
+        const handleChunk = (chunk: string) => {
+            const lines = chunk.trim().split(/\r?\n/).filter(Boolean);
+            if (lines.length > 0) {
+                const lastLine = lines[lines.length - 1];
+                setStreamingSnippet(lastLine.length > 50 ? '...' + lastLine.slice(-47) : lastLine);
+            }
+        };
+
+        for await (const event of agent.run(submittedText, handleChunk)) {
             switch (event.type) {
                 case 'message':
                     setMessages((prev) => [...prev, event.message]);
@@ -36,6 +60,18 @@ export default function App({ agent: propAgent, projectRoot }: AppProps) {
                 case 'status':
                     setStatus(event.status);
                     setActiveToolName(event.activeToolName);
+                    if (event.status !== 'executing_tool') {
+                        setStreamingSnippet(undefined);
+                    }
+                    break;
+                case 'approval_required':
+                    setPendingApproval({
+                        toolCall: event.toolCall,
+                        resolve: (decision) => {
+                            setPendingApproval(null);
+                            event.resolve(decision);
+                        },
+                    });
                     break;
                 case 'error':
                     setError(event.error);
@@ -54,14 +90,20 @@ export default function App({ agent: propAgent, projectRoot }: AppProps) {
                 </Box>
             )}
 
-            <ChatInput
-                value={input}
-                onChange={setInput}
-                onSubmit={handleSubmit}
-                isDisabled={isBusy}
-                statusText={statusText}
-            />
+            {pendingApproval ? (
+                <ApprovalPrompt
+                    toolCall={pendingApproval.toolCall}
+                    onDecision={pendingApproval.resolve}
+                />
+            ) : (
+                <ChatInput
+                    value={input}
+                    onChange={setInput}
+                    onSubmit={handleSubmit}
+                    isDisabled={isBusy}
+                    statusText={statusText}
+                />
+            )}
         </Box>
     );
 }
-

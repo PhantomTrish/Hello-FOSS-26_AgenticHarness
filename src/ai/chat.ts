@@ -41,10 +41,13 @@ export class OpenAiChatService implements ChatService {
             }
         });
 
+        const hasTerminalTool = tools?.some((tool) => tool.name === 'execute_command');
+
         const response = await openai.chat.completions.create({
             model: config.model,
             messages: openAiMessages as any,
             tools: openAiTools?.length ? openAiTools : undefined,
+            parallel_tool_calls: hasTerminalTool ? false : undefined,
         });
 
         const choice = response.choices[0];

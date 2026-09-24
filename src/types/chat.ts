@@ -1,7 +1,13 @@
 import { Tool, ToolCall } from "./tool.js";
 
 export type Role = 'user' | 'assistant' | 'system' | 'tool';
-export type AgentStatus = 'idle' | 'thinking' | 'executing_tool' | 'error';
+export type AgentStatus = 'idle' | 'thinking' | 'executing_tool' | 'awaiting_approval' | 'error';
+
+export interface ApprovalDecision {
+    approved: boolean;
+    alwaysAllowSession?: boolean;
+    reason?: string;
+}
 
 export interface UserMessage {
     role: 'user';
@@ -57,6 +63,7 @@ export type AgentEvent =
     | { type: 'status'; status: AgentStatus; activeToolName?: string }
     | { type: 'message'; message: ChatMessage }
     | { type: 'tool_call'; toolCall: ToolCall }
+    | { type: 'approval_required'; toolCall: ToolCall; resolve: (decision: ApprovalDecision) => void }
     | { type: 'tool_result'; toolCallId: string; name: string; result: string }
     | { type: 'error'; error: string }
     | { type: 'done' };
