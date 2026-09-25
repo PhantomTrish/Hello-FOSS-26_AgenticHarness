@@ -5,7 +5,7 @@ import OpenAI from 'openai'
 
 type Provider = 'openrouter' | 'gemini';
 const router: Provider = 'gemini';
-
+GEMINI_API_KEY = YOUR_GEMINI_API_KEY_HERE;
 const PROVIDER_CONFIG = {
     openrouter: {
         baseURL: 'https://openrouter.ai/api/v1',
