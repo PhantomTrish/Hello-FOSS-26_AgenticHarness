@@ -1,4 +1,5 @@
 import 'dotenv/config'
+console.log('KEY LENGTH:', process.env.GEMINI_API_KEY?.length ?? 'undefined');
 import OpenAI from 'openai'
 
 
@@ -14,7 +15,7 @@ const PROVIDER_CONFIG = {
     gemini: {
         baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai',
         apiKey: process.env.GEMINI_API_KEY,
-        console.log('KEY LENGTH:', process.env.GEMINI_API_KEY?.length ?? 'undefined');
+        
         model: 'gemini-flash-lite-latest',
         // deprecated: bypassThoughtSignature: false, Toggle: injects 'skip_thought_signature_validator' if signature is absent. 
         // basically, google gives you an error if it doesn't get its older thought-process back. but it *can* get dropped by openai sdk or something, if it does, we can choose to silence that error using this bypassing flag. 
