@@ -14,7 +14,7 @@ const PROVIDER_CONFIG = {
     },
     gemini: {
         baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai',
-        apiKey: process.env.GEMINI_API_KEY,
+        apiKey: process.GEMINI_API_KEY,
         
         model: 'gemini-flash-lite-latest',
         // deprecated: bypassThoughtSignature: false, Toggle: injects 'skip_thought_signature_validator' if signature is absent. 
