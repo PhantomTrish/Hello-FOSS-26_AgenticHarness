@@ -1,4 +1,5 @@
 import 'dotenv/config'
+console.log('CWD:', process.cwd());
 console.log('KEY LENGTH:', process.env.GEMINI_API_KEY?.length ?? 'undefined');
 import OpenAI from 'openai'
 
