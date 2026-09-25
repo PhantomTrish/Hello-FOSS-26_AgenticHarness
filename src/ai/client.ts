@@ -5,7 +5,6 @@ import OpenAI from 'openai'
 
 type Provider = 'openrouter' | 'gemini';
 const router: Provider = 'gemini';
-GEMINI_API_KEY = YOUR_GEMINI_API_KEY_HERE;
 const PROVIDER_CONFIG = {
     openrouter: {
         baseURL: 'https://openrouter.ai/api/v1',
@@ -14,7 +13,7 @@ const PROVIDER_CONFIG = {
     },
     gemini: {
         baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai',
-        apiKey: process.GEMINI_API_KEY,
+        apiKey: process.env.GEMINI_API_KEY,
         
         model: 'gemini-flash-lite-latest',
         // deprecated: bypassThoughtSignature: false, Toggle: injects 'skip_thought_signature_validator' if signature is absent. 
