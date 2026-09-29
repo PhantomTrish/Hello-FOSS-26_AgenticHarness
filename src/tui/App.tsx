@@ -1,9 +1,10 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState , useEffect} from 'react';
 import { Text, Box } from 'ink';
 import { AgentStatus, ApprovalDecision, ChatMessage } from '../types/chat.js';
 import { ToolCall } from '../types/tool.js';
 import MessageList from './components/MessageList.js';
 import { Agent } from '../ai/agent.js';
+import { saveSession } from '../ai/session.js'
 import ChatInput from './components/ChatInput.js';
 import ApprovalPrompt from './components/ApprovalPrompt.js';
 
@@ -28,8 +29,16 @@ export default function App({ agent: propAgent, projectRoot }: AppProps) {
     const [pendingApproval, setPendingApproval] = useState<PendingApproval | null>(null);
     const [streamingSnippet, setStreamingSnippet] = useState<string | undefined>();
 
-    const isBusy = status === 'thinking' || status === 'executing_tool' || status === 'awaiting_approval';
+    useEffect(() => {
+    if (!projectRoot) return;
+    const unsubscribe = agent.subscribe((state) => {
+        saveSession(projectRoot, state.messages);
+    });
+    return unsubscribe;
+}, [agent, projectRoot]);
 
+    const isBusy = status === 'thinking' || status === 'executing_tool' || status === 'awaiting_approval';
+    
     let statusText = 'Thinking...';
     if (status === 'awaiting_approval') {
         statusText = 'Waiting for your approval...';
