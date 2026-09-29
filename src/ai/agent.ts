@@ -1,6 +1,7 @@
 import { createEditFileTool } from "../tools/editFile.js";
 import { createReadFileTool } from "../tools/readFile.js";
 import { createWriteFileTool } from "../tools/writeFile.js";
+import { browserTools } from "../tools/browserTools.js";
 import { createSearchFilesTool } from "../tools/searchFiles.js";
 import { createTerminalTool } from "../tools/terminal.js";
 import {
@@ -24,6 +25,7 @@ export interface AgentOptions {
     tools?: Tool[];
     systemPrompt?: string;
     permissionManager?: SessionPermissionManager;
+    initialMessages?: ChatMessage[];
 }
 
 export class Agent {
@@ -43,9 +45,11 @@ export class Agent {
         this.toolRunner = new ToolRunner(this.tools);
         this.permissionManager = options.permissionManager ?? new SessionPermissionManager();
 
-        if (options.systemPrompt) {
-            this.messages.push({ role: 'system', content: options.systemPrompt });
-        }
+       if (options.initialMessages && options.initialMessages.length > 0) {
+         this.messages = [...options.initialMessages ];
+}      else if (options.systemPrompt) {
+         this.messages.push({ role: 'system', content: options.systemPrompt });
+}
     }
 
     public getState(): AgentState {
@@ -231,7 +235,7 @@ export class Agent {
     }
 }
 
-export function createCodingAgent(projectRoot: string): Agent {
+export function createCodingAgent(projectRoot: string, initialMessages?: ChatMessage[]): Agent {
     const tree = getProjectTree(projectRoot);
     return new Agent({
         tools: [
@@ -256,5 +260,6 @@ Best Practices:
    - Always inspect the returned exit code and terminal output to verify whether the command succeeded. If it failed, diagnose and fix the error.
    - Prefer using existing available tools over commands if possible.
         `,
+ initialMessages,
     });
 }
