@@ -244,6 +244,7 @@ export function createCodingAgent(projectRoot: string, initialMessages?: ChatMes
             createEditFileTool(projectRoot),
             createSearchFilesTool(projectRoot),
             createTerminalTool(projectRoot),
+            ...browserTools,
         ],
         systemPrompt: `You are WnCC's expert agentic coding assistant.
 Current Project Structure:
