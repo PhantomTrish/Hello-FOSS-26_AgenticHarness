@@ -1,6 +1,7 @@
 import { createEditFileTool } from "../tools/editFile.js";
 import { createReadFileTool } from "../tools/readFile.js";
 import { createWriteFileTool } from "../tools/writeFile.js";
+import { browserTools } from "../tools/browserTools.js";
 import { createSearchFilesTool } from "../tools/searchFiles.js";
 import { createTerminalTool } from "../tools/terminal.js";
 import {
@@ -240,6 +241,7 @@ export function createCodingAgent(projectRoot: string): Agent {
             createEditFileTool(projectRoot),
             createSearchFilesTool(projectRoot),
             createTerminalTool(projectRoot),
+            ...browserTools,
         ],
         systemPrompt: `You are WnCC's expert agentic coding assistant.
 Current Project Structure:
