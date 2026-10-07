@@ -153,6 +153,40 @@ export class Agent {
         return toolMessage;
     }
 
+    private static readonly MAX_HISTORY_MESSAGES = 40;
+private static readonly TRIM_KEEP_RECENT = 20;
+
+private trimHistoryIfNeeded(): void {
+    if (this.messages.length <= Agent.MAX_HISTORY_MESSAGES) return;
+
+    // Always keep the system message (if present) at index 0
+    const hasSystemMessage = this.messages[0]?.role === 'system';
+    const systemMessage = hasSystemMessage ? this.messages[0] : null;
+
+    const startIndex = hasSystemMessage ? 1 : 0;
+    const keepFrom = this.messages.length - Agent.TRIM_KEEP_RECENT;
+
+    const olderMessages = this.messages.slice(startIndex, keepFrom);
+    const recentMessages = this.messages.slice(keepFrom);
+
+    const compactedOlder = olderMessages.map((msg) => {
+        // Only compact large tool results — leave user/assistant text messages intact
+        if (msg.role === 'tool' && typeof msg.content === 'string' && msg.content.length > 300) {
+            return {
+                ...msg,
+                content: `[Older tool result omitted to save context — was ${msg.content.length} chars. Re-run the tool if you need this again.]`,
+            };
+        }
+        return msg;
+    });
+
+    this.messages = [
+        ...(systemMessage ? [systemMessage] : []),
+        ...compactedOlder,
+        ...recentMessages,
+    ];
+}
+
     public async *run(input: string, onChunk?: (chunk: string) => void): AsyncGenerator<AgentEvent> {
         const trimmed = input.trim();
         if (!trimmed || this.isBusy()) return;
@@ -165,10 +199,11 @@ export class Agent {
         yield { type: 'status', status: 'thinking' };
 
         try {
-            const MAX_STEPS = 10;
+            const MAX_STEPS = 25;
             let step = 0;
 
             while (step++ < MAX_STEPS) {
+                this.trimHistoryIfNeeded();
                 const response: ChatResponse = await this.chatService.chat(this.messages, this.tools);
 
                 const assistantMessage: ChatMessage = {
@@ -260,6 +295,10 @@ Best Practices:
    - Always run non-interactive commands. Pass flags like -y, --yes, -m where needed to avoid hanging.
    - Always inspect the returned exit code and terminal output to verify whether the command succeeded. If it failed, diagnose and fix the error.
    - Prefer using existing available tools over commands if possible.
+6. After writing or editing code, ALWAYS verify your changes before considering the task complete:
+   - Check the project's package.json (or equivalent config) for a "test", "build", "typecheck", or "lint" script, and run whichever ones apply to the change you made.
+   - If a verification command fails, read the exact error output, diagnose the root cause, fix the code, and re-run the verification command. Repeat until it passes or you determine the failure is unrelated to your change.
+   - Never tell the user a task is complete without having run and passed the relevant verification step, or explicitly explaining why verification wasn't possible (e.g. no test suite exists).
         `,
  initialMessages,
     });
