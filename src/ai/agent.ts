@@ -203,6 +203,7 @@ private trimHistoryIfNeeded(): void {
             let step = 0;
 
             while (step++ < MAX_STEPS) {
+                this.trimHistoryIfNeeded();
                 const response: ChatResponse = await this.chatService.chat(this.messages, this.tools);
 
                 const assistantMessage: ChatMessage = {
