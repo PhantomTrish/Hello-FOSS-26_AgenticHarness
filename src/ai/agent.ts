@@ -165,7 +165,7 @@ export class Agent {
         yield { type: 'status', status: 'thinking' };
 
         try {
-            const MAX_STEPS = 10;
+            const MAX_STEPS = 25;
             let step = 0;
 
             while (step++ < MAX_STEPS) {
@@ -260,6 +260,10 @@ Best Practices:
    - Always run non-interactive commands. Pass flags like -y, --yes, -m where needed to avoid hanging.
    - Always inspect the returned exit code and terminal output to verify whether the command succeeded. If it failed, diagnose and fix the error.
    - Prefer using existing available tools over commands if possible.
+6. After writing or editing code, ALWAYS verify your changes before considering the task complete:
+   - Check the project's package.json (or equivalent config) for a "test", "build", "typecheck", or "lint" script, and run whichever ones apply to the change you made.
+   - If a verification command fails, read the exact error output, diagnose the root cause, fix the code, and re-run the verification command. Repeat until it passes or you determine the failure is unrelated to your change.
+   - Never tell the user a task is complete without having run and passed the relevant verification step, or explicitly explaining why verification wasn't possible (e.g. no test suite exists).
         `,
  initialMessages,
     });
