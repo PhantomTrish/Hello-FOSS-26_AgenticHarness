@@ -12,6 +12,14 @@ export interface TerminalArgs {
     timeoutMs?: number;
 }
 
+function truncate(text: string, maxChars: number): string {
+    const trimmed = text.trim();
+    if (trimmed.length <= maxChars) return trimmed || '(none)';
+    const head = trimmed.slice(0, Math.floor(maxChars * 0.3));
+    const tail = trimmed.slice(-Math.floor(maxChars * 0.6));
+    return `${head}\n\n[...truncated (${trimmed.length} total chars)...]\n\n${tail}`;
+}
+
 export function createTerminalTool(projectRoot: string): Tool<TerminalArgs> {
     return {
         name: 'execute_command',
@@ -65,7 +73,8 @@ export function createTerminalTool(projectRoot: string): Tool<TerminalArgs> {
                     ? ['-NoProfile', '-NonInteractive', '-Command', trimmedCommand]
                     : ['-c', trimmedCommand];
 
-                let output = '';
+                let stdoutBuf = '';
+                let stderrBuf = '';
                 let timedOut = false;
 
                 const proc = spawn(shell, shellArgs, {
@@ -81,9 +90,9 @@ export function createTerminalTool(projectRoot: string): Tool<TerminalArgs> {
                     },
                 });
 
-                const appendChunk = (data: Buffer) => {
+                const appendStdout = (data: Buffer) => {
                     const text = data.toString('utf-8');
-                    output += text;
+                    stdoutBuf += text;
                     if (onChunk) {
                         try {
                             onChunk(text);
@@ -93,8 +102,20 @@ export function createTerminalTool(projectRoot: string): Tool<TerminalArgs> {
                     }
                 };
 
-                proc.stdout?.on('data', appendChunk);
-                proc.stderr?.on('data', appendChunk);
+                const appendStderr = (data: Buffer) => {
+                    const text = data.toString('utf-8');
+                    stderrBuf += text;
+                    if (onChunk) {
+                        try {
+                            onChunk(text);
+                        } catch {
+                            // Ignore callback errors during streaming
+                        }
+                    }
+                };
+
+                proc.stdout?.on('data', appendStdout);
+                proc.stderr?.on('data', appendStderr);
 
                 const timeout = setTimeout(() => {
                     timedOut = true;
@@ -103,25 +124,29 @@ export function createTerminalTool(projectRoot: string): Tool<TerminalArgs> {
                     } catch {
                         // Ignore process kill errors
                     }
-                    output += `\n[Command timed out after ${timeoutMs / 1000}s]`;
                 }, timeoutMs);
 
                 proc.on('close', (code) => {
                     clearTimeout(timeout);
 
-                    let formattedOutput = output.trim();
-                    if (formattedOutput.length > MAX_OUTPUT_CHARS) {
-                        const head = formattedOutput.slice(0, 10_000);
-                        const tail = formattedOutput.slice(-20_000);
-                        formattedOutput = `${head}\n\n[...output truncated (${output.length} total chars)...]\n\n${tail}`;
-                    }
-
                     const exitCode = timedOut ? 124 : (code ?? 0);
                     const cwdSuffix = cwd ? ` (in ${cwd})` : '';
+                    const statusLine = timedOut
+                        ? `TIMED OUT after ${timeoutMs / 1000}s`
+                        : exitCode === 0
+                            ? 'SUCCESS'
+                            : `FAILED (exit code ${exitCode})`;
+
+                    const formattedStdout = truncate(stdoutBuf, MAX_OUTPUT_CHARS / 2);
+                    const formattedStderr = truncate(stderrBuf, MAX_OUTPUT_CHARS / 2);
 
                     resolve({
-                        content: `Exit Code: ${exitCode}\nOutput:\n${formattedOutput || '(no output)'}`,
-                        summary: `$ ${trimmedCommand}${cwdSuffix} [exit: ${exitCode}]`,
+                        content:
+                            `Status: ${statusLine}\n` +
+                            `Exit Code: ${exitCode}\n\n` +
+                            `--- STDOUT ---\n${formattedStdout}\n\n` +
+                            `--- STDERR ---\n${formattedStderr}`,
+                        summary: `$ ${trimmedCommand}${cwdSuffix} [${statusLine}]`,
                     });
                 });
 
