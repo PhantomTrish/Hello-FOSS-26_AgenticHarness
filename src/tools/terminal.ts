@@ -12,14 +12,6 @@ export interface TerminalArgs {
     timeoutMs?: number;
 }
 
-function truncate(text: string, maxChars: number): string {
-    const trimmed = text.trim();
-    if (trimmed.length <= maxChars) return trimmed || '(none)';
-    const head = trimmed.slice(0, Math.floor(maxChars * 0.3));
-    const tail = trimmed.slice(-Math.floor(maxChars * 0.6));
-    return `${head}\n\n[...truncated (${trimmed.length} total chars)...]\n\n${tail}`;
-}
-
 export function createTerminalTool(projectRoot: string): Tool<TerminalArgs> {
     return {
         name: 'execute_command',
@@ -125,6 +117,14 @@ export function createTerminalTool(projectRoot: string): Tool<TerminalArgs> {
                         // Ignore process kill errors
                     }
                 }, timeoutMs);
+
+                function truncate(text: string, maxChars: number): string {
+                    const trimmed = text.trim();
+                    if (trimmed.length <= maxChars) return trimmed || '(none)';
+                    const head = trimmed.slice(0, Math.floor(maxChars * 0.3));
+                    const tail = trimmed.slice(-Math.floor(maxChars * 0.6));
+                    return `${head}\n\n[...truncated (${trimmed.length} total chars)...]\n\n${tail}`;
+                }
 
                 proc.on('close', (code) => {
                     clearTimeout(timeout);
