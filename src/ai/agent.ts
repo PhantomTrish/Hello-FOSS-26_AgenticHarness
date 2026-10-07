@@ -153,6 +153,40 @@ export class Agent {
         return toolMessage;
     }
 
+    private static readonly MAX_HISTORY_MESSAGES = 40;
+private static readonly TRIM_KEEP_RECENT = 20;
+
+private trimHistoryIfNeeded(): void {
+    if (this.messages.length <= Agent.MAX_HISTORY_MESSAGES) return;
+
+    // Always keep the system message (if present) at index 0
+    const hasSystemMessage = this.messages[0]?.role === 'system';
+    const systemMessage = hasSystemMessage ? this.messages[0] : null;
+
+    const startIndex = hasSystemMessage ? 1 : 0;
+    const keepFrom = this.messages.length - Agent.TRIM_KEEP_RECENT;
+
+    const olderMessages = this.messages.slice(startIndex, keepFrom);
+    const recentMessages = this.messages.slice(keepFrom);
+
+    const compactedOlder = olderMessages.map((msg) => {
+        // Only compact large tool results — leave user/assistant text messages intact
+        if (msg.role === 'tool' && typeof msg.content === 'string' && msg.content.length > 300) {
+            return {
+                ...msg,
+                content: `[Older tool result omitted to save context — was ${msg.content.length} chars. Re-run the tool if you need this again.]`,
+            };
+        }
+        return msg;
+    });
+
+    this.messages = [
+        ...(systemMessage ? [systemMessage] : []),
+        ...compactedOlder,
+        ...recentMessages,
+    ];
+}
+
     public async *run(input: string, onChunk?: (chunk: string) => void): AsyncGenerator<AgentEvent> {
         const trimmed = input.trim();
         if (!trimmed || this.isBusy()) return;
