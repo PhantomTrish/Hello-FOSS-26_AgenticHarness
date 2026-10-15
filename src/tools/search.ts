@@ -92,10 +92,11 @@ export async function fetch_markdown(url: string): Promise<string> {
     });
     
     // Optional: remove common boilerplate elements if they snuck through Readability
-    turndownService.remove(['script', 'style', 'noscript', 'svg']);
+    // 'svg' works at runtime; turndown's TagName type only covers HTML tags
+    turndownService.remove(['script', 'style', 'noscript', 'svg'] as TurndownService.TagName[]);
 
     let markdown = `# ${article.title}\n\n`;
-    markdown += turndownService.turndown(article.content);
+    markdown += turndownService.turndown(article.content ?? '');
 
     return markdown;
 }
