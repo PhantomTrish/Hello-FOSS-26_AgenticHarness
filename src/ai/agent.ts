@@ -46,10 +46,18 @@ export class Agent {
         this.permissionManager = options.permissionManager ?? new SessionPermissionManager();
 
        if (options.initialMessages && options.initialMessages.length > 0) {
-         this.messages = [...options.initialMessages ];
-}      else if (options.systemPrompt) {
-         this.messages.push({ role: 'system', content: options.systemPrompt });
-}
+            const hasSystemMessage = options.initialMessages.some((msg) => msg.role === 'system');
+            if (!hasSystemMessage && options.systemPrompt) {
+                this.messages = [
+                    { role: 'system', content: options.systemPrompt },
+                    ...options.initialMessages,
+                ];
+            } else {
+                this.messages = [...options.initialMessages];
+            }
+        } else if (options.systemPrompt) {
+            this.messages.push({ role: 'system', content: options.systemPrompt });
+        }
     }
 
     public getState(): AgentState {
