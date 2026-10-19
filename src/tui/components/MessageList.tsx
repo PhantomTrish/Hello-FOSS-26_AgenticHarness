@@ -125,6 +125,14 @@ function MessageList({ messages, items: propItems, projectRoot }: MessageListPro
                                     <Text color={isDenied ? 'red' : 'cyan'}>
                                         {message.summary ?? ''}
                                     </Text>
+
+                                    {message.added !== undefined && (
+                                        <Text color='green'>{' '}+{message.added}</Text>
+                                    )}
+
+                                    {message.removed !== undefined && (
+                                        <Text color='red'>{' '}-{message.removed}</Text>
+                                    )}
                                 </Box>
 
                                {message.name === 'search_files' && (

@@ -2,6 +2,11 @@ import fs from 'node:fs';
 import { Tool, ToolResult } from '../types/tool.js';
 import { resolveInProject } from '../utils/workspace.js';
 
+/** Lines in a snippet. An empty snippet is no lines, not one. */
+function countLines(text: string): number {
+    return text === '' ? 0 : text.split('\n').length;
+}
+
 interface EditFileArgs {
     path: string;
     oldString: string;
@@ -70,9 +75,14 @@ export function createEditFileTool(projectRoot: string): Tool<EditFileArgs> {
                 const updatedContent = content.replace(target, replacement);
                 fs.writeFileSync(resolvedPath, updatedContent, 'utf-8');
 
+                const removed = countLines(target);
+                const added = countLines(replacement);
+
                 return {
                     content: `Successfully replaced unique instance of target code in ${filePath}.`,
-                    summary: `${filePath} [Edited snippet]`,
+                    summary: `Edited [file] ${filePath}`,
+                    added,
+                    removed,
                 };
             } catch (error: any) {
                 return { content: `Error editing file: ${error.message}` };

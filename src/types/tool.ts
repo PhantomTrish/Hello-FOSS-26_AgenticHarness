@@ -18,6 +18,9 @@ export interface Tool<TArgs = any> {
 export interface ToolResult {
     content: string;
     summary?: string;
+    // Line counts for file edits, so the TUI can show "+12 -4" without re-reading the file.
+    added?: number;
+    removed?: number;
 }
 
 export interface ToolCall {

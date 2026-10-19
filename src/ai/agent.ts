@@ -186,6 +186,8 @@ export class Agent {
             name: toolCall.name,
             content: result.content,
             summary: result.summary,
+            added: result.added,
+            removed: result.removed,
         };
         this.messages.push(toolMessage);
         return toolMessage;
