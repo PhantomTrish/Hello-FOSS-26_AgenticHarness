@@ -1,10 +1,10 @@
 import React from 'react';
 import { render } from 'ink';
 import App from './tui/App.js';
-import { Agent, createCodingAgent } from './ai/agent.js';
-import { createWriteFileTool } from './tools/writeFile.js';
+import { createCodingAgent } from './ai/agent.js';
 import { getProjectRoot } from './utils/workspace.js';
 import { BrowserDaemon } from './browser/daemon.js';
+import { resolveInitialMessages } from './ai/session.js';
 import { createRequire } from 'node:module';
 import { loadSession } from './ai/session.js';
 
@@ -39,13 +39,14 @@ async function main() {
         process.exit(0);
     }
 
-    const isHeaded = process.argv.includes('--headed');
+    const args = process.argv.slice(2);
+    const isHeaded = args.includes('--headed');
     BrowserDaemon.getInstance({ headless: !isHeaded });
 
     const projectRoot = await getProjectRoot();
-    const agent = createCodingAgent(projectRoot);
+    const initialMessages = resolveInitialMessages(projectRoot, args);
+    const agent = createCodingAgent(projectRoot, initialMessages);
     await render(<App agent={agent} projectRoot={projectRoot} />, { exitOnCtrlC: false });
-    
 }
 
 main().catch((err) => {

@@ -30,12 +30,15 @@ export default function App({ agent: propAgent, projectRoot }: AppProps) {
     const [streamingSnippet, setStreamingSnippet] = useState<string | undefined>();
 
     useEffect(() => {
-    if (!projectRoot) return;
-    const unsubscribe = agent.subscribe((state) => {
-        saveSession(projectRoot, state.messages);
-    });
-    return unsubscribe;
-}, [agent, projectRoot]);
+        if (!projectRoot) return;
+        const unsubscribe = agent.subscribe((state) => {
+            const hasConversation = state.messages.some((msg) => msg.role !== 'system');
+            if (hasConversation) {
+                saveSession(projectRoot, state.messages);
+            }
+        });
+        return unsubscribe;
+    }, [agent, projectRoot]);
 
     const isBusy = status === 'thinking' || status === 'executing_tool' || status === 'awaiting_approval';
 
