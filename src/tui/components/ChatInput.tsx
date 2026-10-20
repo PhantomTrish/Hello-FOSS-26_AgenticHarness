@@ -1,6 +1,7 @@
 import React from 'react';
+import { Loading } from './Loading.js';
 import { Box, Text } from 'ink';
-import TextInput from 'ink-text-input'
+import TextInput from 'ink-text-input';
 
 interface ChatInputProps {
     value: string;
@@ -14,7 +15,7 @@ export default function ChatInput({ value, onChange, onSubmit, isDisabled = fals
     if (isDisabled) {
         return (
             <Box>
-                <Text color="gray">&gt; {statusText || 'Thinking...'}</Text>
+                <Loading text={statusText || 'Thinking...'} />
             </Box>
         );
     }
@@ -29,5 +30,5 @@ export default function ChatInput({ value, onChange, onSubmit, isDisabled = fals
                 placeholder='Type a message and press Enter...'
             />
         </Box>
-    )
-};
+    );
+}
