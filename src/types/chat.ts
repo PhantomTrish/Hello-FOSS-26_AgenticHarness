@@ -32,6 +32,8 @@ export interface ToolMessage {
     name: string;
     content: string;
     summary?: string; // Human Friendly Summary for the UI
+    added?: number;
+    removed?: number;
 }
 
 export type ChatMessage =
