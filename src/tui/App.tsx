@@ -1,5 +1,5 @@
 import React, { useMemo, useState , useEffect} from 'react';
-import { Text, Box } from 'ink';
+import { Text, Box, useApp } from 'ink';
 import { AgentStatus, ApprovalDecision, ChatMessage } from '../types/chat.js';
 import { ToolCall } from '../types/tool.js';
 import MessageList from './components/MessageList.js';
@@ -48,7 +48,40 @@ export default function App({ agent: propAgent, projectRoot }: AppProps) {
             : `Running ${activeToolName || 'tool'}...`;
     }
 
+    const { exit } = useApp();
+
     const handleSubmit = async (submittedText: string) => {
+        const text = submittedText.trim();
+        if (!text) return; 
+
+        
+        if (/^\/[^\s/]*(\s|$)/.test(text)) {
+            const command = text.split(/\s+/)[0].toLowerCase();
+            setError(undefined);
+
+            switch (command) {
+                case '/exit':
+                case '/quit':
+                    exit();
+                    return; 
+                case '/clear':
+                    setMessages([]);
+                    break;
+                case '/help':
+                    setMessages(prev => [...prev, {
+                        role: 'assistant',
+                        content: 'Available commands:\n/help - Show this message\n/clear - Clear chat history\n/exit or /quit - Exit the application\n\nShortcuts:\nEnter - Send message\nCtrl+C - Exit'
+                    }]);
+                    break;
+                default:
+                    setError(`Unknown command: ${command}. Type /help for available commands.`);
+                    break;
+            }
+
+            setInput('');
+            return;
+        }
+
         setInput('');
         setError(undefined);
         setStreamingSnippet(undefined);
@@ -61,7 +94,7 @@ export default function App({ agent: propAgent, projectRoot }: AppProps) {
             }
         };
 
-        for await (const event of agent.run(submittedText, handleChunk)) {
+        for await (const event of agent.run(text, handleChunk)) {
             switch (event.type) {
                 case 'message':
                     setMessages((prev) => [...prev, event.message]);
@@ -116,3 +149,5 @@ export default function App({ agent: propAgent, projectRoot }: AppProps) {
         </Box>
     );
 }
+
+
